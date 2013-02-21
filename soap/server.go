@@ -28,45 +28,38 @@ type Method struct {
 }
 
 type ResponseEnvelope struct {
-  XMLName xml.Name     `xml:"SOAP-ENV:Envelope"`
-  ENV     string       `xml:"xmlns:SOAP-ENV,attr"`
-  Header  []byte       `xml:"SOAP-ENV:Header,omitempty"`
-  Body    ResponseBody `xml:"SOAP-ENV:Body"`
+  XMLName xml.Name    `xml:"SOAP-ENV:Envelope"`
+  ENV     string      `xml:"xmlns:SOAP-ENV,attr"`
+  Header  []byte      `xml:"SOAP-ENV:Header,omitempty"`
+  Body    interface{} `xml:"SOAP-ENV:Body"`
+  //Body ResponseBody `xml:"SOAP-ENV:Body"`
 }
 
 type ResponseBody struct {
-  XMLName xml.Name
-  Data    interface{}
+  XMLName xml.Name    `xml:"SOAP-ENV:Body"`
+  Data    interface{} `xml:",innerxml"`
 }
 
 type Fault struct {
   XMLName     xml.Name    `xml:"SOAP-ENV:Fault"`
   FaultCode   string      `xml:"faultcode"`
   FaultString string      `xml:"faultstring"`
-  Detail      FaultDetail `xml:"detail"`
-}
-
-type FaultDetail struct {
-  XMLName xml.Name    `xml:"detail"`
-  Data    interface{} `xml:",innerxml"`
+  Detail      interface{} `xml:"detail"`
 }
 
 func NewResponse(data interface{}) *ResponseEnvelope {
   return &ResponseEnvelope{
-    ENV: "http://schemas.xmlsoap.org/soap/envelope/",
-    Body: ResponseBody{
-      Data: data,
-    },
+    ENV:  "http://schemas.xmlsoap.org/soap/envelope/",
+    Body: data,
   }
 }
 
 func NewFault(s string, detail interface{}) *ResponseEnvelope {
-  return NewResponse(&Fault{
+  return NewResponse(&ResponseBody{Data: &Fault{
     FaultCode:   "SOAP-ENV:Client",
     FaultString: s,
-    Detail: FaultDetail{
-      Data: detail,
-    }})
+    Detail:      detail,
+  }})
 }
 
 // ----------------------------------------------------------------------------
