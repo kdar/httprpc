@@ -6,6 +6,7 @@ import (
   "fmt"
   "io"
   "math/rand"
+  "strings"
 )
 
 // clientRequest represents a JSON-RPC v2.0 request sent by a client.
@@ -40,6 +41,16 @@ func EncodeClientRequest(method string, args interface{}) ([]byte, error) {
   return json.Marshal(c)
 }
 
+type Error map[string]interface{}
+
+func (e Error) Error() string {
+  var parts []string
+  for key, value := range e {
+    parts = append(parts, fmt.Sprintf("%s: %s", key, value))
+  }
+  return strings.Join(parts, ", ")
+}
+
 // DecodeClientResponse decodes the response body of a client request into
 // the interface reply.
 func DecodeClientResponse(r io.Reader, reply interface{}) error {
@@ -47,8 +58,13 @@ func DecodeClientResponse(r io.Reader, reply interface{}) error {
   if err := json.NewDecoder(r).Decode(&c); err != nil {
     return err
   }
+
   if c.Error != nil {
-    return fmt.Errorf("%v", c.Error)
+    if eror, ok := c.Error.(map[string]interface{}); ok {
+      return Error(eror)
+    } else {
+      return fmt.Errorf("%v", c.Error)
+    }
   }
   return json.Unmarshal(*c.Result, reply)
 }
