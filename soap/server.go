@@ -54,9 +54,12 @@ func NewResponse(data interface{}) *ResponseEnvelope {
   }
 }
 
-func NewFault(s string, detail interface{}) *ResponseEnvelope {
+func NewFault(c, s string, detail interface{}) *ResponseEnvelope {
+  if c == "" {
+    c = "SOAP-ENV:Client"
+  }
   return NewResponse(&ResponseBody{Data: &Fault{
-    FaultCode:   "SOAP-ENV:Client",
+    FaultCode:   c,
     FaultString: s,
     Detail:      detail,
   }})
@@ -142,7 +145,7 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, m
   var res *ResponseEnvelope
 
   if methodErr != nil {
-    res = NewFault(methodErr.Error(), nil)
+    res = NewFault("", methodErr.Error(), nil)
   } else {
     res = NewResponse(reply)
   }
