@@ -4,9 +4,11 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/gorilla/rpc"
 	"net/http"
 	"reflect"
+	"strings"
+
+	rpc "github.com/gorilla/rpc/v2"
 )
 
 type RequestEnvelope struct {
@@ -28,20 +30,20 @@ type Method struct {
 }
 
 type ResponseEnvelope struct {
-	XMLName xml.Name    `xml:"SOAP-ENV:Envelope"`
-	ENV     string      `xml:"xmlns:SOAP-ENV,attr"`
-	Header  []byte      `xml:"SOAP-ENV:Header,omitempty"`
-	Body    interface{} `xml:"SOAP-ENV:Body"`
+	XMLName xml.Name    `xml:"Envelope"`
+	ENV     string      `xml:"xmlns,attr"`
+	Header  []byte      `xml:"Header,omitempty"`
+	Body    interface{} `xml:"Body"`
 	//Body ResponseBody `xml:"SOAP-ENV:Body"`
 }
 
 type ResponseBody struct {
-	XMLName xml.Name    `xml:"SOAP-ENV:Body"`
+	XMLName xml.Name    `xml:"Body"`
 	Data    interface{} `xml:",innerxml"`
 }
 
 type Fault struct {
-	XMLName     xml.Name    `xml:"SOAP-ENV:Fault"`
+	XMLName     xml.Name    `xml:"Fault"`
 	FaultCode   string      `xml:"faultcode"`
 	FaultString string      `xml:"faultstring"`
 	Detail      interface{} `xml:"detail"`
@@ -56,7 +58,7 @@ func NewResponse(data interface{}) *ResponseEnvelope {
 
 func NewFault(c, s string, detail interface{}) *ResponseEnvelope {
 	if c == "" {
-		c = "SOAP-ENV:Client"
+		c = "Client"
 	}
 	return NewResponse(&ResponseBody{Data: &Fault{
 		FaultCode:   c,
@@ -83,10 +85,6 @@ func (c *Codec) NewRequest(r *http.Request) rpc.CodecRequest {
 	return newCodecRequest(r)
 }
 
-// ----------------------------------------------------------------------------
-// CodecRequest
-// ----------------------------------------------------------------------------
-
 type serverRequest struct {
 	Port     string
 	Envelope RequestEnvelope
@@ -99,7 +97,14 @@ func newCodecRequest(r *http.Request) rpc.CodecRequest {
 	err := xml.NewDecoder(r.Body).Decode(&req.Envelope)
 	r.Body.Close()
 
-	req.Port = r.Form.Get("_soap_port")
+	path := r.URL.Path
+	index := strings.LastIndex(path, "/")
+	if index < 0 {
+		return &CodecRequest{request: req, err: fmt.Errorf("soap: no port: %s", path)}
+	}
+	req.Port = path[index+1:]
+
+	//req.Port = r.Form.Get("_soap_port")
 
 	return &CodecRequest{request: req, err: err}
 }
@@ -122,37 +127,31 @@ func (c *CodecRequest) Method() (string, error) {
 
 // ReadRequest fills the request object for the RPC method.
 func (c *CodecRequest) ReadRequest(args interface{}) error {
-	rv := reflect.ValueOf(args)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
-		c.err = errors.New("rpc: args not of proper type")
-	} else {
-		xmlstr := "<root>" + string(c.request.Envelope.Body.Method.Params) + "</root>"
-		c.err = xml.Unmarshal([]byte(xmlstr), args)
+	if c.err == nil {
+		rv := reflect.ValueOf(args)
+		if rv.Kind() != reflect.Ptr || rv.IsNil() {
+			c.err = errors.New("rpc: args not of proper type")
+		} else {
+			xmlstr := "<root>" + string(c.request.Envelope.Body.Method.Params) + "</root>"
+			c.err = xml.Unmarshal([]byte(xmlstr), args)
+		}
 	}
 
 	return c.err
 }
 
 // WriteResponse encodes the response and writes it to the ResponseWriter.
-//
-// The err parameter is the error resulted from calling the RPC method,
-// or nil if there was no error.
-func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, methodErr error) error {
-	if c.err != nil {
-		return c.err
-	}
-
-	var res *ResponseEnvelope
-
-	if methodErr != nil {
-		res = NewFault("", methodErr.Error(), nil)
-	} else {
-		res = NewResponse(reply)
-	}
-
+func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
+	res := NewResponse(reply)
 	w.Header().Set("Content-Type", "application/soap+xml; charset=utf-8")
 	encoder := xml.NewEncoder(w)
-	err := encoder.Encode(res)
+	encoder.Encode(res)
+}
 
-	return err
+func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
+	res := NewFault("", err.Error(), nil)
+	w.Header().Set("Content-Type", "application/soap+xml; charset=utf-8")
+	w.WriteHeader(status)
+	encoder := xml.NewEncoder(w)
+	encoder.Encode(res)
 }

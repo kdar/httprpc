@@ -1,12 +1,12 @@
-A package containing codecs for Gorilla RPC: https://github.com/gorilla/rpc.
+httprpc
+=======
+
+A package containing codecs for Gorilla RPC: https://github.com/gorilla/rpc/v2.
 
 Not all server/client codecs are implemented:
 
-####json2
-client only
+- soap: server only
 
-####soap
-server only
+## Note
 
-####jsonrest
-server only
+The old httprpc is in the [v1 branch](https://github.com/kdar/httprpc/tree/v1).

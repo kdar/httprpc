@@ -2,8 +2,9 @@ package httprpc
 
 import (
 	"errors"
-	gjson "github.com/gorilla/rpc/json"
-	hjson2 "github.com/kdar/httprpc/json2"
+
+	gjson "github.com/gorilla/rpc/v2/json"
+	gjson2 "github.com/gorilla/rpc/v2/json2"
 )
 
 func CallJson(version, address, method string, params, reply interface{}) error {
@@ -17,7 +18,7 @@ func CallJson(version, address, method string, params, reply interface{}) error 
 	case "20", "2.0", "v20", "v2.0":
 		return CallRaw(address,
 			method, &params, &reply, "application/json",
-			hjson2.EncodeClientRequest, hjson2.DecodeClientResponse)
+			gjson2.EncodeClientRequest, gjson2.DecodeClientResponse)
 	default:
 		return errors.New("JsonRPC Version not recognized")
 	}
